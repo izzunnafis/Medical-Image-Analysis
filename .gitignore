@@ -71,3 +71,14 @@ Thumbs.db
 *.dll
 *.exe
 
+# Folder
+/model
+/Dataset
+*.zip
+
+# Dataset
+*.jpg
+*.png
+*.jpeg
+
+# Model
