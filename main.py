@@ -3,6 +3,7 @@ import sys
 import os
 
 import gui
+import process_thread
 import PyQt5
 import model
 import tensorflow as tf
@@ -12,6 +13,8 @@ app = PyQt5.QtWidgets.QApplication(sys.argv)
 window1 = PyQt5.QtWidgets.QMainWindow()
 ui = gui.Ui_MainWindow()
 ui.setupUi(window1)
+threadpool = PyQt5.QtCore.QThreadPool()
+
 current_dir = os.getcwd()
 is_predicted = False
 
@@ -72,14 +75,33 @@ def set_indexButton():
 def model_changed():
     global model_path
     if ui.comboBox_modelSelect.currentIndex()==0:
-        model_path = current_dir+'model/model8_92'
+        model_path = current_dir+'/model/model8_92'
     if ui.comboBox_modelSelect.currentIndex()==1:
-        model_path = None
+        model_path = current_dir+'/model/model5_76'
+    ui.pushButton_modelSet.setEnabled(True)
+    
+def set_model():
+    worker = process_thread.Worker(load_dlModel)
+    worker.signal.started.connect(progressBar_loadModel)
+    worker.signal.finished.connect(progressBar_loadModelStop)
+    threadpool.start(worker)
+    ui.pushButton_modelSet.setDisabled(True)
 
-def process():
+def load_dlModel():
     global dl_model
     dl_model = tf.keras.models.load_model(model_path)
-    pred_res = dl_model.predict_classes(all_dataframe['file_path'])
+
+def progressBar_loadModel():
+    ui.label_processName.setText("Loading model")
+    ui.progressBar.setMaximum(0)
+    button_busyState()
+
+def progressBar_loadModelStop():
+    ui.label_processName.setText("State : Idle")
+    ui.progressBar.setMaximum(1)
+
+def process():
+    pred_res = "COBA"
     print(pred_res)
 #def predict_res():
 #    if(is_predicted):
@@ -92,6 +114,7 @@ ui.pushButton_Left.clicked.connect(index_decr)
 ui.spinBox_imgIndex.valueChanged.connect(index_changed)
 ui.comboBox_modelSelect.currentIndexChanged.connect(model_changed)
 ui.pushButton_predict.clicked.connect(process)
+ui.pushButton_modelSet.clicked.connect(load_dlModel)
 
 def gpu_availability():
     if(tf.test.is_gpu_available()):
@@ -101,12 +124,42 @@ def gpu_availability():
         ui.label_GPU.setText("GPU is unavailable")
         ui.label_GPU.setStyleSheet("background : rgb(255, 0, 0)")
 
+def button_busyState():
+    ui.pushButton_getDir.setDisabled(True)
+    ui.pushButton_getImg.setDisabled(True)    
+    ui.pushButton_help.setDisabled(True)
+    ui.pushButton_Left.setDisabled(True)
+    ui.pushButton_modelSet.setDisabled(True)
+    ui.pushButton_predict.setDisabled(True)
+    ui.pushButton_Right.setDisabled(True)
+    ui.pushButton_save.setDisabled(True)
+    ui.pushButton_summary.setDisabled(True)
+    ui.comboBox_modelSelect.setDisabled(True)
 
+    ui.pushButton_cancelProcess.setEnabled(True)
 
+def button_idleState():
+    ui.pushButton_getDir.setEnabled(True)
+    ui.pushButton_getImg.setEnabled(True)    
+    ui.pushButton_help.setEnabled(True)
+    ui.pushButton_Left.setEnabled(True)
+    ui.pushButton_modelSet.setEnabled(True)
+    ui.pushButton_predict.setEnabled(True)
+    ui.pushButton_Right.setEnabled(True)
+    ui.pushButton_save.setEnabled(True)
+    ui.pushButton_summary.setEnabled(True)
+    ui.comboBox_modelSelect.setEnabled(True)
+
+    ui.pushButton_cancelProcess.setDisabled(True)
+    
+def init():
+    ui.pushButton_cancelProcess.setDisabled(True)
+    gpu_availability()
+    model_changed()
 
 if __name__ == "__main__":
 
     window1.show()
-    gpu_availability()
+    init()
     sys.exit(app.exec_())
 
