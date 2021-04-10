@@ -66,14 +66,14 @@ def index_decr():
 def model_changed():
     global model_path
     if ui.comboBox_modelSelect.currentIndex()==0:
-        model_path = current_dir+'/model/model_LU_Net'
+        model_path = current_dir+'/model/model_Improved_Resnet50'
         if current_modelSelect == 0:
             ui.pushButton_modelSet.setDisabled(True)
         else :
             ui.pushButton_modelSet.setEnabled(True)
             
     if ui.comboBox_modelSelect.currentIndex()==1:
-        model_path = current_dir+'/model/model_Improved_Resnet50'
+        model_path = current_dir+'/model/model_LU_Net'
         if current_modelSelect == 1:
             ui.pushButton_modelSet.setDisabled(True)
         else :
