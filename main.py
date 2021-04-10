@@ -1,30 +1,75 @@
 # This Python file uses the following encoding: utf-8
 import sys
 import os
+import shutil
+from datetime import datetime
+from PIL import Image
 
-import gui
-import process_thread
-import PyQt5
-import model
-import tensorflow as tf
-import cv2
 import numpy as np
 import pandas as pd
-from PIL import Image
+import PyQt5
+import tensorflow as tf
+import cv2
+
+import gui
+import summary
+import information
+import process_thread
 
 app = PyQt5.QtWidgets.QApplication(sys.argv)
 window1 = PyQt5.QtWidgets.QMainWindow()
 ui = gui.Ui_MainWindow()
 ui.setupUi(window1)
+window2 = PyQt5.QtWidgets.QMainWindow()
+ui_summary = summary.Ui_MainWindow()
+ui_summary.setupUi(window2)
+window3 = PyQt5.QtWidgets.QMainWindow()
+ui_information = information.Ui_MainWindow()
+ui_information.setupUi(window3)
 threadpool = PyQt5.QtCore.QThreadPool()
-class_label = ['meningioma', 'glioma', 'no tumor', 'pituitary']
+class_label = ['meningioma', 'glioma', 'no tumor', 'pituitary', 'No Data']
 
 current_dir = os.getcwd()
 is_predicted = False
 current_modelSelect=-1
 img_num = 0
+is_valid_clicked = False
 
 # Slot
+def get_fileDir():
+    ui.label_res.setText("...")
+    ui.label_res_2.setText("...")
+    browse_dir()
+    index_changed()
+
+def browse_dir():
+    global img_num
+    global file_temp
+    global filename
+    global all_dataframe
+    global is_predicted
+    is_predicted = False
+    
+    full_path = []
+    file_temp = PyQt5.QtWidgets.QFileDialog.getExistingDirectory(window1, 'Open img', current_dir)
+    for dirpath, _, filename in os.walk(file_temp):
+        for name in filename:
+            if '.jpg' or '.png' or '.jpeg' in name:
+                full_path.append(os.path.join(dirpath, name))
+    
+    all_dataframe = pd.DataFrame()
+    all_dataframe['file_path'] = full_path
+    all_dataframe['validation_res'] = "No Data"
+    all_dataframe['prediction_res'] = "No Data"
+    all_dataframe['prediction_belief'] = np.NaN
+    all_dataframe['isTrue'] = False
+    img_num = all_dataframe['file_path'].count()
+    ui.spinBox_imgIndex.setMaximum(max(img_num, 1))
+    ui.label_imgImport.setText("{} image imported".format(img_num))
+    get_valid_val()
+    button_state()
+
+
 def get_fileClick():
     ui.label_res.setText("...")
     ui.label_res_2.setText("...")
@@ -36,6 +81,8 @@ def browse_img():
     global file_temp
     global filename
     global all_dataframe
+    global is_predicted
+    is_predicted = False
     file_temp = PyQt5.QtWidgets.QFileDialog.getOpenFileNames(window1, 'Open img', current_dir, "Image files (*.jpg *.gif *.png)")
     filename = file_temp[0]
     all_dataframe = pd.DataFrame()
@@ -48,7 +95,7 @@ def browse_img():
     ui.spinBox_imgIndex.setMaximum(max(img_num, 1))
     ui.label_imgImport.setText("{} image imported".format(img_num))
     get_valid_val()
-    process_button_state()
+    button_state()
     
 def index_changed():
     global img_index
@@ -99,14 +146,14 @@ def set_indexButton():
 def model_changed():
     global model_path
     if ui.comboBox_modelSelect.currentIndex()==0:
-        model_path = current_dir+'/model/model8_92'
+        model_path = current_dir+'/model/model_LU_Net'
         if current_modelSelect == 0:
             ui.pushButton_modelSet.setDisabled(True)
         else :
             ui.pushButton_modelSet.setEnabled(True)
             
     if ui.comboBox_modelSelect.currentIndex()==1:
-        model_path = current_dir+'/model/model5_76'
+        model_path = current_dir+'/model/model_Improved_Resnet50'
         if current_modelSelect == 1:
             ui.pushButton_modelSet.setDisabled(True)
         else :
@@ -134,7 +181,7 @@ def error_handle(errorMessage):
     error_boxShow()
     current_modelSelect = -1  
     ui.label_selectedModel.setText("Selected Model : None")
-    process_button_state()
+    button_state()
 
 def load_dlModel():
     global dl_model, model1, model2
@@ -167,13 +214,26 @@ def progressBar_stop():
     ui.label_processName.setText("State : Idle")
     ui.progressBar.setMaximum(1)
     button_idleState()
-    process_button_state()
+    button_state()
+    index_changed()
 
-def process_button_state():
-    if current_modelSelect == -1 or img_num == 0:
+def button_state():
+    if img_num == 0 or current_modelSelect == -1:
         ui.pushButton_predict.setDisabled(True)
     else :
-        ui.pushButton_predict.setEnabled(True)
+        ui.pushButton_predict.setDisabled(False)
+
+    if img_num == 0:
+        ui.pushButton_summary.setDisabled(True)
+        ui.pushButton_valid.setDisabled(True)
+    else :
+        ui.pushButton_summary.setDisabled(False)
+        ui.pushButton_valid.setDisabled(False)
+
+    if not is_predicted:
+        ui.pushButton_save.setDisabled(True)
+    else :
+        ui.pushButton_save.setDisabled(False)
 
 def process_call():
     worker = process_thread.Worker(process)
@@ -182,22 +242,22 @@ def process_call():
     worker.signal.error.connect(error_handleProcess)
     ui.pushButton_cancelProcess.clicked.connect(worker.stop)
     threadpool.start(worker)
-    index_changed()
 
 def error_handleProcess(errorMessage):
     global current_modelSelect
     global error_msg
     error_msg = errorMessage
     error_boxShow()
-    process_button_state()
+    button_state()
 
 def progressBar_process():
-    ui.label_processName.setText("Loading model")
+    ui.label_processName.setText("Classifying image")
     ui.progressBar.setMaximum(0)
     button_busyState()
 
 def process():
     global all_dataframe
+    global is_predicted
     predict_label = []
     predict_label_belief = []
     for dir in all_dataframe['file_path'] :
@@ -206,32 +266,92 @@ def process():
         img_arr = np.stack([img_arr], axis=0)
         res_array = dl_model.predict(img_arr)
         predict_label.append(class_label[np.argmax(res_array)])
-        predict_label_belief.append(np.max(res_array))
+        predict_label_belief.append(round(np.max(res_array)*1000)/1000.0)
     all_dataframe.prediction_res= predict_label
+    all_dataframe.prediction_belief = predict_label_belief
 
     all_dataframe.isTrue = np.where(all_dataframe['prediction_res']==all_dataframe['validation_res'], True, False)
+    is_predicted = True
+
+def validation_clicked():
+    global is_valid_clicked
+    if not is_valid_clicked:
+        if any(all_dataframe['validation_res'].str.contains('No Data')) == True:
+            box = PyQt5.QtWidgets.QMessageBox()
+            box.setText("Warning")
+            box.setInformativeText("Some data didn't have valid classification. For more info, you can go to information page")
+            box.setWindowTitle("Warning")
+            box.exec_()
+        is_valid_clicked = True
+    else :
+        is_valid_clicked = False
+    validation_state()
+
+def validation_state():
+    if is_valid_clicked:
+        ui.pushButton_valid.setGeometry(700, 380, 91, 31)
+        ui.pushButton_valid.setText("Hide Validation")
+        ui.label_5.show()
+        ui.label_res_2.show()
+    else :
+        ui.pushButton_valid.setGeometry(560, 380, 91, 31)
+        ui.pushButton_valid.setText("Validation")
+        ui.label_5.hide()
+        ui.label_res_2.hide()
+
+def save_call():
+    global folder_path
+    worker = process_thread.Worker(save)
+    worker.signal.started.connect(progressBar_save)
+    worker.signal.finished.connect(progressBar_stop)
+    worker.signal.error.connect(error_handleProcess)
+    ui.pushButton_cancelProcess.clicked.connect(worker.stop)
+
+    folder_path = PyQt5.QtWidgets.QFileDialog.getExistingDirectory(window1, 'Save Folder', current_dir+"/Result")
+    threadpool.start(worker)
+
+def progressBar_save():
+    ui.label_processName.setText("Saving")
+    ui.progressBar.setMaximum(0)
+    button_busyState()
 
 def save():
-    all_dataframe.to_excel(current_dir+'/save.xlsx')
+    global folder_path
+    now = datetime.now()
+    formatted_path = folder_path + "/Classification Result at " + str(now.strftime("%B %d, %Y %H-%M-%S"))
+    os.mkdir(formatted_path)
+    for i in range (len(all_dataframe['file_path'])):
+        file_dest = os.path.join(formatted_path, all_dataframe['prediction_res'].values[i])
+        if not os.path.exists(file_dest):
+            os.makedirs(file_dest)
+        shutil.copy2(all_dataframe['file_path'].values[i], file_dest)
+        
+    all_dataframe.to_csv(formatted_path+'/result.csv', sep=';')
+    confussion_dataframe.to_csv(formatted_path+'/confussion_matrix.csv', sep=';')
+    perf_dataframe.to_csv(formatted_path+'/performance.csv', sep=';')
+
+def summary_call():
+    window2.show()
+    fill_summary()
+    fill_confussion_matrix()
+    fill_performance()
+
+def information_call():
+    window3.show()
 
 # Signal
 ui.pushButton_getImg.clicked.connect(get_fileClick)
+ui.pushButton_getDir.clicked.connect(get_fileDir)
 ui.pushButton_Right.clicked.connect(index_incr)
 ui.pushButton_Left.clicked.connect(index_decr)
 ui.spinBox_imgIndex.valueChanged.connect(index_changed)
 ui.comboBox_modelSelect.currentIndexChanged.connect(model_changed)
 ui.pushButton_predict.clicked.connect(process_call)
 ui.pushButton_modelSet.clicked.connect(set_model)
-ui.pushButton_save.clicked.connect(save)
-
-
-def gpu_availability():
-    if(tf.test.is_gpu_available()):
-        ui.label_GPU.setText("GPU is available")
-        ui.label_GPU.setStyleSheet("background : rgb(77, 255, 57)")
-    else:
-        ui.label_GPU.setText("GPU is unavailable")
-        ui.label_GPU.setStyleSheet("background : rgb(255, 0, 0)")
+ui.pushButton_save.clicked.connect(save_call)
+ui.pushButton_valid.clicked.connect(validation_clicked)
+ui.pushButton_summary.clicked.connect(summary_call)
+ui.pushButton_help.clicked.connect(information_call)
 
 def button_busyState():
     ui.pushButton_getDir.setDisabled(True)
@@ -244,6 +364,7 @@ def button_busyState():
     ui.pushButton_save.setDisabled(True)
     ui.pushButton_summary.setDisabled(True)
     ui.comboBox_modelSelect.setDisabled(True)
+    ui.pushButton_valid.setDisabled(True)
 
     ui.pushButton_cancelProcess.setEnabled(True)
 
@@ -257,6 +378,7 @@ def button_idleState():
     ui.pushButton_save.setEnabled(True)
     ui.pushButton_summary.setEnabled(True)
     ui.comboBox_modelSelect.setEnabled(True)
+    ui.pushButton_valid.setEnabled(True)
 
     ui.pushButton_cancelProcess.setDisabled(True)
     
@@ -275,15 +397,82 @@ def get_valid_val():
             elif "pituitary" in file_dir:
                 valid_label.append("pituitary")
             else :
-                valid_label.append("no validation")
+                valid_label.append("No Data")
         all_dataframe.validation_res = valid_label
 
+def fill_summary():
+    headers = list(all_dataframe)
+    ui_summary.tableWidget_sum.setRowCount(all_dataframe.shape[0])
+    ui_summary.tableWidget_sum.setColumnCount(all_dataframe.shape[1])
+    ui_summary.tableWidget_sum.setHorizontalHeaderLabels(headers)
+
+    content_array = all_dataframe.values
+    for row in range(all_dataframe.shape[0]):
+        for col in range(all_dataframe.shape[1]):
+            ui_summary.tableWidget_sum.setItem(row, col, PyQt5.QtWidgets.QTableWidgetItem(str(content_array[row, col])))
+
+def fill_confussion_matrix():
+    global confussion_dataframe
+    zero_list = [0, 0, 0, 0, 0]
+    idx_label = {'meningioma_valid', 'glioma_valid', 'no tumor_valid', 'pituitary_valid', 'No Data_valid'}
+    data = {'meningioma_pred':zero_list, 'glioma_pred':zero_list, 'no tumor_pred':zero_list, 'pituitary_pred':zero_list, 'No Data_pred':zero_list}
+    confussion_dataframe = pd.DataFrame(data, index=idx_label)
+
+    for i in range(len(all_dataframe['file_path'])):
+        idx_pred = class_label.index(all_dataframe['prediction_res'].values[i])
+        idx_val = class_label.index(all_dataframe['validation_res'].values[i])
+
+        confussion_dataframe.iat[idx_val, idx_pred] += 1 
+    
+
+    headers = list(confussion_dataframe)
+
+    ui_summary.tableWidget_confMat.setRowCount(confussion_dataframe.shape[0])
+    ui_summary.tableWidget_confMat.setColumnCount(confussion_dataframe.shape[1])
+    ui_summary.tableWidget_confMat.setHorizontalHeaderLabels(headers)
+    ui_summary.tableWidget_confMat.setVerticalHeaderLabels(idx_label)
+
+    content_array = confussion_dataframe.values
+    for row in range(confussion_dataframe.shape[0]):
+        for col in range(confussion_dataframe.shape[1]):
+            ui_summary.tableWidget_confMat.setItem(row, col, PyQt5.QtWidgets.QTableWidgetItem(str(content_array[row, col])))
+
+def fill_performance():
+    global perf_dataframe
+    zero_list = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    index_perf = ['Accuracy', 'Misclassification', 'Precision', 'Recall', 'Specificity', 'F1-score']
+    data = {'meningioma':zero_list, 'glioma':zero_list, 'no tumor':zero_list, 'pituitary':zero_list}
+    perf_dataframe = pd.DataFrame(data, index=index_perf)
+    for i in range(len(perf_dataframe.columns)):
+        TP = float(confussion_dataframe.iat[i, i])
+        FP = float(confussion_dataframe.iloc[:,i].sum()-TP)
+        FN = float(confussion_dataframe.iloc[i].sum()-TP)
+        TN = float(confussion_dataframe.values.sum()-TP-FP-FN)        
+        
+        perf_dataframe.iat[0, i] = round((TP+TN)/max((TP+FP+TN+FN),1.0)*1000)/1000.0
+        perf_dataframe.iat[1, i] = round((FP+FN)/max((TP+FP+TN+FN),1.0)*1000)/1000.0
+        perf_dataframe.iat[2, i] = round(TP/max((TP+FP),1.0)*1000)/1000.0
+        perf_dataframe.iat[3, i] = round(TP/max((TP+FN),1.0)*1000)/1000.0
+        perf_dataframe.iat[4, i] = round(TN/max((FP+TN),1.0)*1000)/1000.0
+        perf_dataframe.iat[5, i] = round((TP+TP)/max((TP+TP+FP+FN),1.0)*1000)/1000.0
+        
+    headers = list(perf_dataframe)
+
+    ui_summary.tableWidget_acc.setRowCount(perf_dataframe.shape[0])
+    ui_summary.tableWidget_acc.setColumnCount(perf_dataframe.shape[1])
+    ui_summary.tableWidget_acc.setHorizontalHeaderLabels(headers)
+    ui_summary.tableWidget_acc.setVerticalHeaderLabels(index_perf)
+
+    content_array = perf_dataframe.values
+    for row in range(perf_dataframe.shape[0]):
+        for col in range(perf_dataframe.shape[1]):
+            ui_summary.tableWidget_acc.setItem(row, col, PyQt5.QtWidgets.QTableWidgetItem(str(content_array[row, col])))
 
 def init():
     ui.pushButton_cancelProcess.setDisabled(True)
-    gpu_availability()
     model_changed()
-    process_button_state()
+    validation_state()
+    button_state()
 
 if __name__ == "__main__":
     window1.show()

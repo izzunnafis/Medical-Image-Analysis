@@ -29,7 +29,7 @@
      </font>
     </property>
     <property name="text">
-     <string>Get Image File(s)</string>
+     <string>Medical Image</string>
     </property>
    </widget>
    <widget class="QPushButton" name="pushButton_predict">
@@ -54,7 +54,7 @@
     <property name="geometry">
      <rect>
       <x>560</x>
-      <y>310</y>
+      <y>330</y>
       <width>81</width>
       <height>21</height>
      </rect>
@@ -84,7 +84,7 @@
     </item>
     <item>
      <property name="text">
-      <string>Lu-Net</string>
+      <string>LU-Net</string>
      </property>
     </item>
    </widget>
@@ -93,7 +93,7 @@
      <rect>
       <x>560</x>
       <y>200</y>
-      <width>81</width>
+      <width>141</width>
       <height>21</height>
      </rect>
     </property>
@@ -103,14 +103,14 @@
      </font>
     </property>
     <property name="text">
-     <string>Model Select :</string>
+     <string>Model Deep Learning :</string>
     </property>
    </widget>
    <widget class="QLabel" name="label_res">
     <property name="geometry">
      <rect>
       <x>560</x>
-      <y>330</y>
+      <y>350</y>
       <width>121</width>
       <height>31</height>
      </rect>
@@ -139,7 +139,7 @@
      </font>
     </property>
     <property name="text">
-     <string>See Summary</string>
+     <string>Summary</string>
     </property>
    </widget>
    <widget class="QLabel" name="label_1">
@@ -157,35 +157,10 @@
      </font>
     </property>
     <property name="text">
-     <string>Medical Image Analysis</string>
+     <string>MEDICAL IMAGE ANALYSIS</string>
     </property>
     <property name="alignment">
      <set>Qt::AlignCenter</set>
-    </property>
-   </widget>
-   <widget class="QLabel" name="label_GPU">
-    <property name="geometry">
-     <rect>
-      <x>560</x>
-      <y>410</y>
-      <width>141</width>
-      <height>16</height>
-     </rect>
-    </property>
-    <property name="autoFillBackground">
-     <bool>false</bool>
-    </property>
-    <property name="styleSheet">
-     <string notr="true">background : rgb(77, 255, 57)</string>
-    </property>
-    <property name="frameShape">
-     <enum>QFrame::NoFrame</enum>
-    </property>
-    <property name="frameShadow">
-     <enum>QFrame::Plain</enum>
-    </property>
-    <property name="text">
-     <string>GPU is Available</string>
     </property>
    </widget>
    <widget class="QGraphicsView" name="graphicsView_mainImg">
@@ -291,14 +266,14 @@
      </font>
     </property>
     <property name="text">
-     <string>Help</string>
+     <string>Information</string>
     </property>
    </widget>
    <widget class="QLabel" name="label_res_2">
     <property name="geometry">
      <rect>
       <x>560</x>
-      <y>380</y>
+      <y>400</y>
       <width>121</width>
       <height>20</height>
      </rect>
@@ -316,7 +291,7 @@
     <property name="geometry">
      <rect>
       <x>560</x>
-      <y>360</y>
+      <y>380</y>
       <width>81</width>
       <height>21</height>
      </rect>
@@ -363,7 +338,7 @@
      </font>
     </property>
     <property name="text">
-     <string>Get Image Folder</string>
+     <string>Folder</string>
     </property>
    </widget>
    <widget class="QLineEdit" name="lineEdit_filePath">
@@ -469,6 +444,19 @@
     </property>
     <property name="text">
      <string>Selected Model : None</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pushButton_valid">
+    <property name="geometry">
+     <rect>
+      <x>560</x>
+      <y>380</y>
+      <width>91</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Validation</string>
     </property>
    </widget>
   </widget>

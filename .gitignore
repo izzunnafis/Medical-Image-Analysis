@@ -74,6 +74,7 @@ Thumbs.db
 # Folder
 /model
 /Dataset
+/Result
 *.zip
 
 # Dataset
