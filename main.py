@@ -42,60 +42,11 @@ def get_fileDir():
     browse_dir()
     index_changed()
 
-def browse_dir():
-    global img_num
-    global file_temp
-    global filename
-    global all_dataframe
-    global is_predicted
-    is_predicted = False
-    
-    full_path = []
-    file_temp = PyQt5.QtWidgets.QFileDialog.getExistingDirectory(window1, 'Open img', current_dir)
-    for dirpath, _, filename in os.walk(file_temp):
-        for name in filename:
-            if '.jpg' or '.png' or '.jpeg' in name:
-                full_path.append(os.path.join(dirpath, name))
-    
-    all_dataframe = pd.DataFrame()
-    all_dataframe['file_path'] = full_path
-    all_dataframe['validation_res'] = "No Data"
-    all_dataframe['prediction_res'] = "No Data"
-    all_dataframe['prediction_belief'] = np.NaN
-    all_dataframe['isTrue'] = False
-    img_num = all_dataframe['file_path'].count()
-    ui.spinBox_imgIndex.setMaximum(max(img_num, 1))
-    ui.label_imgImport.setText("{} image imported".format(img_num))
-    get_valid_val()
-    button_state()
-
-
 def get_fileClick():
     ui.label_res.setText("...")
     ui.label_res_2.setText("...")
     browse_img()
     index_changed()
-
-def browse_img():
-    global img_num
-    global file_temp
-    global filename
-    global all_dataframe
-    global is_predicted
-    is_predicted = False
-    file_temp = PyQt5.QtWidgets.QFileDialog.getOpenFileNames(window1, 'Open img', current_dir, "Image files (*.jpg *.gif *.png)")
-    filename = file_temp[0]
-    all_dataframe = pd.DataFrame()
-    all_dataframe['file_path'] = filename
-    all_dataframe['validation_res'] = "No Data"
-    all_dataframe['prediction_res'] = "No Data"
-    all_dataframe['prediction_belief'] = np.NaN
-    all_dataframe['isTrue'] = False
-    img_num = all_dataframe['file_path'].count()
-    ui.spinBox_imgIndex.setMaximum(max(img_num, 1))
-    ui.label_imgImport.setText("{} image imported".format(img_num))
-    get_valid_val()
-    button_state()
     
 def index_changed():
     global img_index
@@ -106,42 +57,11 @@ def index_changed():
     img_validRes()
     img_predictRes()
 
-def set_img():
-    if img_num>=1:
-        img = PyQt5.QtGui.QPixmap(all_dataframe['file_path'].values[img_index-1])
-        scene = PyQt5.QtWidgets.QGraphicsScene()
-        scene.clear()
-        scene.addItem(PyQt5.QtWidgets.QGraphicsPixmapItem(img))
-        ui.graphicsView_mainImg.setScene(scene)
-
-def img_pathLabel():
-    if img_num>=1:
-        ui.lineEdit_filePath.setText(all_dataframe['file_path'].values[img_index-1])
-
-def img_predictRes():
-    if img_num>=1:
-        ui.label_res.setText(all_dataframe['prediction_res'].values[img_index-1])
-        
-def img_validRes():
-    if img_num>=1:
-        ui.label_res_2.setText(all_dataframe['validation_res'].values[img_index-1])
-
 def index_incr():
     ui.spinBox_imgIndex.setValue(max(1, min(img_index + 1, img_num)))
 
 def index_decr():
     ui.spinBox_imgIndex.setValue(max(1, min(img_index - 1, img_num)))
-
-def set_indexButton():
-    if img_index <= 1:
-        ui.pushButton_Left.setDisabled(True)
-    else :
-        ui.pushButton_Left.setEnabled(True)
-
-    if img_index >= img_num:
-        ui.pushButton_Right.setDisabled(True)
-    else :
-        ui.pushButton_Right.setEnabled(True)
 
 def model_changed():
     global model_path
@@ -167,21 +87,75 @@ def set_model():
     ui.pushButton_cancelProcess.clicked.connect(worker.stop)
     threadpool.start(worker)
 
-def error_boxShow():
-    box = PyQt5.QtWidgets.QMessageBox()
-    box.setText("Error")
-    box.setInformativeText(error_msg)
-    box.setWindowTitle("Error")
-    box.exec_()
+def process_call():
+    worker = process_thread.Worker(process)
+    worker.signal.started.connect(progressBar_process)
+    worker.signal.finished.connect(progressBar_stop)
+    worker.signal.error.connect(error_handleProcess)
+    ui.pushButton_cancelProcess.clicked.connect(worker.stop)
+    threadpool.start(worker)
 
-def error_handle(errorMessage):
-    global current_modelSelect
-    global error_msg
-    error_msg = errorMessage
-    error_boxShow()
-    current_modelSelect = -1  
-    ui.label_selectedModel.setText("Selected Model : None")
+def validation_clicked():
+    global is_valid_clicked
+    if not is_valid_clicked:
+        if any(all_dataframe['validation_res'].str.contains('No Data')) == True:
+            box = PyQt5.QtWidgets.QMessageBox()
+            box.setText("Warning")
+            box.setInformativeText("Some data didn't have valid classification. For more info, you can go to information page")
+            box.setWindowTitle("Warning")
+            box.exec_()
+        is_valid_clicked = True
+    else :
+        is_valid_clicked = False
+    validation_state()
+
+def save_call():
+    global folder_path
+    worker = process_thread.Worker(save)
+    worker.signal.started.connect(progressBar_save)
+    worker.signal.finished.connect(progressBar_stop)
+    worker.signal.error.connect(error_handleProcess)
+    ui.pushButton_cancelProcess.clicked.connect(worker.stop)
+
+    folder_path = PyQt5.QtWidgets.QFileDialog.getExistingDirectory(window1, 'Save Folder', current_dir+"/Result")
+    threadpool.start(worker)
+
+def summary_call():
+    window2.show()
+    fill_summary()
+    fill_confussion_matrix()
+    fill_performance()
+
+def information_call():
+    window3.show()
+
+# Signal
+ui.pushButton_getImg.clicked.connect(get_fileClick)
+ui.pushButton_getDir.clicked.connect(get_fileDir)
+ui.pushButton_Right.clicked.connect(index_incr)
+ui.pushButton_Left.clicked.connect(index_decr)
+ui.spinBox_imgIndex.valueChanged.connect(index_changed)
+ui.comboBox_modelSelect.currentIndexChanged.connect(model_changed)
+ui.pushButton_predict.clicked.connect(process_call)
+ui.pushButton_modelSet.clicked.connect(set_model)
+ui.pushButton_save.clicked.connect(save_call)
+ui.pushButton_valid.clicked.connect(validation_clicked)
+ui.pushButton_summary.clicked.connect(summary_call)
+ui.pushButton_help.clicked.connect(information_call)
+
+#Thread slot
+
+def progressBar_stop():
+    ui.label_processName.setText("State : Idle")
+    ui.progressBar.setMaximum(1)
+    button_idleState()
     button_state()
+    index_changed()
+
+def progressBar_loadModel():
+    ui.label_processName.setText("Loading model")
+    ui.progressBar.setMaximum(0)
+    button_busyState()
 
 def load_dlModel():
     global dl_model, model1, model2
@@ -204,51 +178,6 @@ def load_dlModel():
         dl_model = model2
         current_modelSelect = 1
         ui.label_selectedModel.setText("Selected Model : Lu-Net")
-
-def progressBar_loadModel():
-    ui.label_processName.setText("Loading model")
-    ui.progressBar.setMaximum(0)
-    button_busyState()
-
-def progressBar_stop():
-    ui.label_processName.setText("State : Idle")
-    ui.progressBar.setMaximum(1)
-    button_idleState()
-    button_state()
-    index_changed()
-
-def button_state():
-    if img_num == 0 or current_modelSelect == -1:
-        ui.pushButton_predict.setDisabled(True)
-    else :
-        ui.pushButton_predict.setDisabled(False)
-
-    if img_num == 0:
-        ui.pushButton_summary.setDisabled(True)
-        ui.pushButton_valid.setDisabled(True)
-    else :
-        ui.pushButton_summary.setDisabled(False)
-        ui.pushButton_valid.setDisabled(False)
-
-    if not is_predicted:
-        ui.pushButton_save.setDisabled(True)
-    else :
-        ui.pushButton_save.setDisabled(False)
-
-def process_call():
-    worker = process_thread.Worker(process)
-    worker.signal.started.connect(progressBar_process)
-    worker.signal.finished.connect(progressBar_stop)
-    worker.signal.error.connect(error_handleProcess)
-    ui.pushButton_cancelProcess.clicked.connect(worker.stop)
-    threadpool.start(worker)
-
-def error_handleProcess(errorMessage):
-    global current_modelSelect
-    global error_msg
-    error_msg = errorMessage
-    error_boxShow()
-    button_state()
 
 def progressBar_process():
     ui.label_processName.setText("Classifying image")
@@ -273,43 +202,6 @@ def process():
     all_dataframe.isTrue = np.where(all_dataframe['prediction_res']==all_dataframe['validation_res'], True, False)
     is_predicted = True
 
-def validation_clicked():
-    global is_valid_clicked
-    if not is_valid_clicked:
-        if any(all_dataframe['validation_res'].str.contains('No Data')) == True:
-            box = PyQt5.QtWidgets.QMessageBox()
-            box.setText("Warning")
-            box.setInformativeText("Some data didn't have valid classification. For more info, you can go to information page")
-            box.setWindowTitle("Warning")
-            box.exec_()
-        is_valid_clicked = True
-    else :
-        is_valid_clicked = False
-    validation_state()
-
-def validation_state():
-    if is_valid_clicked:
-        ui.pushButton_valid.setGeometry(700, 380, 91, 31)
-        ui.pushButton_valid.setText("Hide Validation")
-        ui.label_5.show()
-        ui.label_res_2.show()
-    else :
-        ui.pushButton_valid.setGeometry(560, 380, 91, 31)
-        ui.pushButton_valid.setText("Validation")
-        ui.label_5.hide()
-        ui.label_res_2.hide()
-
-def save_call():
-    global folder_path
-    worker = process_thread.Worker(save)
-    worker.signal.started.connect(progressBar_save)
-    worker.signal.finished.connect(progressBar_stop)
-    worker.signal.error.connect(error_handleProcess)
-    ui.pushButton_cancelProcess.clicked.connect(worker.stop)
-
-    folder_path = PyQt5.QtWidgets.QFileDialog.getExistingDirectory(window1, 'Save Folder', current_dir+"/Result")
-    threadpool.start(worker)
-
 def progressBar_save():
     ui.label_processName.setText("Saving")
     ui.progressBar.setMaximum(0)
@@ -330,28 +222,62 @@ def save():
     confussion_dataframe.to_csv(formatted_path+'/confussion_matrix.csv', sep=';')
     perf_dataframe.to_csv(formatted_path+'/performance.csv', sep=';')
 
-def summary_call():
-    window2.show()
-    fill_summary()
-    fill_confussion_matrix()
-    fill_performance()
+def error_boxShow():
+    box = PyQt5.QtWidgets.QMessageBox()
+    box.setText("Error")
+    box.setInformativeText(error_msg)
+    box.setWindowTitle("Error")
+    box.exec_()
 
-def information_call():
-    window3.show()
+#GUI function
+def set_img():
+    if img_num>=1:
+        img = PyQt5.QtGui.QPixmap(all_dataframe['file_path'].values[img_index-1])
+        scene = PyQt5.QtWidgets.QGraphicsScene()
+        scene.clear()
+        scene.addItem(PyQt5.QtWidgets.QGraphicsPixmapItem(img))
+        ui.graphicsView_mainImg.setScene(scene)
 
-# Signal
-ui.pushButton_getImg.clicked.connect(get_fileClick)
-ui.pushButton_getDir.clicked.connect(get_fileDir)
-ui.pushButton_Right.clicked.connect(index_incr)
-ui.pushButton_Left.clicked.connect(index_decr)
-ui.spinBox_imgIndex.valueChanged.connect(index_changed)
-ui.comboBox_modelSelect.currentIndexChanged.connect(model_changed)
-ui.pushButton_predict.clicked.connect(process_call)
-ui.pushButton_modelSet.clicked.connect(set_model)
-ui.pushButton_save.clicked.connect(save_call)
-ui.pushButton_valid.clicked.connect(validation_clicked)
-ui.pushButton_summary.clicked.connect(summary_call)
-ui.pushButton_help.clicked.connect(information_call)
+def img_pathLabel():
+    if img_num>=1:
+        ui.lineEdit_filePath.setText(all_dataframe['file_path'].values[img_index-1])
+
+def img_predictRes():
+    if img_num>=1:
+        ui.label_res.setText(all_dataframe['prediction_res'].values[img_index-1])
+        
+def img_validRes():
+    if img_num>=1:
+        ui.label_res_2.setText(all_dataframe['validation_res'].values[img_index-1])
+
+def set_indexButton():
+    if img_index <= 1:
+        ui.pushButton_Left.setDisabled(True)
+    else :
+        ui.pushButton_Left.setEnabled(True)
+
+    if img_index >= img_num:
+        ui.pushButton_Right.setDisabled(True)
+    else :
+        ui.pushButton_Right.setEnabled(True)
+
+def button_state():
+    if img_num == 0 or current_modelSelect == -1:
+        ui.pushButton_predict.setDisabled(True)
+    else :
+        ui.pushButton_predict.setDisabled(False)
+
+    if img_num == 0:
+        ui.pushButton_summary.setDisabled(True)
+        ui.pushButton_valid.setDisabled(True)
+    else :
+        ui.pushButton_summary.setDisabled(False)
+        ui.pushButton_valid.setDisabled(False)
+
+    if not is_predicted:
+        ui.pushButton_save.setDisabled(True)
+    else :
+        ui.pushButton_save.setDisabled(False)
 
 def button_busyState():
     ui.pushButton_getDir.setDisabled(True)
@@ -381,24 +307,18 @@ def button_idleState():
     ui.pushButton_valid.setEnabled(True)
 
     ui.pushButton_cancelProcess.setDisabled(True)
-    
-def get_valid_val():
-    if img_num>=1:   
-        last2path = all_dataframe['file_path'].str.split().str[-2:]
-        valid_label = []
-        for file_dir in last2path:
-            file_dir = "".join(file_dir)
-            if "meningioma" in file_dir:
-                valid_label.append("meningioma")
-            elif "glioma" in file_dir:
-                valid_label.append("glioma")
-            elif "no_tumor" in file_dir:
-                valid_label.append("no_tumor")
-            elif "pituitary" in file_dir:
-                valid_label.append("pituitary")
-            else :
-                valid_label.append("No Data")
-        all_dataframe.validation_res = valid_label
+
+def validation_state():
+    if is_valid_clicked:
+        ui.pushButton_valid.setGeometry(700, 380, 91, 31)
+        ui.pushButton_valid.setText("Hide Validation")
+        ui.label_5.show()
+        ui.label_res_2.show()
+    else :
+        ui.pushButton_valid.setGeometry(560, 380, 91, 31)
+        ui.pushButton_valid.setText("Validation")
+        ui.label_5.hide()
+        ui.label_res_2.hide()
 
 def fill_summary():
     headers = list(all_dataframe)
@@ -467,6 +387,89 @@ def fill_performance():
     for row in range(perf_dataframe.shape[0]):
         for col in range(perf_dataframe.shape[1]):
             ui_summary.tableWidget_acc.setItem(row, col, PyQt5.QtWidgets.QTableWidgetItem(str(content_array[row, col])))
+
+def error_handleProcess(errorMessage):
+    global current_modelSelect
+    global error_msg
+    error_msg = errorMessage
+    error_boxShow()
+    button_state()
+
+def error_handle(errorMessage):
+    global current_modelSelect
+    global error_msg
+    error_msg = errorMessage
+    error_boxShow()
+    current_modelSelect = -1  
+    ui.label_selectedModel.setText("Selected Model : None")
+    button_state()
+
+#Program function
+def browse_dir():
+    global img_num
+    global file_temp
+    global filename
+    global all_dataframe
+    global is_predicted
+    is_predicted = False
+    
+    full_path = []
+    file_temp = PyQt5.QtWidgets.QFileDialog.getExistingDirectory(window1, 'Open img', current_dir)
+    for dirpath, _, filename in os.walk(file_temp):
+        for name in filename:
+            if '.jpg' or '.png' or '.jpeg' in name:
+                full_path.append(os.path.join(dirpath, name))
+    
+    all_dataframe = pd.DataFrame()
+    all_dataframe['file_path'] = full_path
+    all_dataframe['validation_res'] = "No Data"
+    all_dataframe['prediction_res'] = "No Data"
+    all_dataframe['prediction_belief'] = np.NaN
+    all_dataframe['isTrue'] = False
+    img_num = all_dataframe['file_path'].count()
+    ui.spinBox_imgIndex.setMaximum(max(img_num, 1))
+    ui.label_imgImport.setText("{} image imported".format(img_num))
+    get_valid_val()
+    button_state()
+
+def browse_img():
+    global img_num
+    global file_temp
+    global filename
+    global all_dataframe
+    global is_predicted
+    is_predicted = False
+    file_temp = PyQt5.QtWidgets.QFileDialog.getOpenFileNames(window1, 'Open img', current_dir, "Image files (*.jpg *.gif *.png)")
+    filename = file_temp[0]
+    all_dataframe = pd.DataFrame()
+    all_dataframe['file_path'] = filename
+    all_dataframe['validation_res'] = "No Data"
+    all_dataframe['prediction_res'] = "No Data"
+    all_dataframe['prediction_belief'] = np.NaN
+    all_dataframe['isTrue'] = False
+    img_num = all_dataframe['file_path'].count()
+    ui.spinBox_imgIndex.setMaximum(max(img_num, 1))
+    ui.label_imgImport.setText("{} image imported".format(img_num))
+    get_valid_val()
+    button_state()
+    
+def get_valid_val():
+    if img_num>=1:   
+        last2path = all_dataframe['file_path'].str.split().str[-2:]
+        valid_label = []
+        for file_dir in last2path:
+            file_dir = "".join(file_dir)
+            if "meningioma" in file_dir:
+                valid_label.append("meningioma")
+            elif "glioma" in file_dir:
+                valid_label.append("glioma")
+            elif "no_tumor" in file_dir:
+                valid_label.append("no_tumor")
+            elif "pituitary" in file_dir:
+                valid_label.append("pituitary")
+            else :
+                valid_label.append("No Data")
+        all_dataframe.validation_res = valid_label
 
 def init():
     ui.pushButton_cancelProcess.setDisabled(True)
