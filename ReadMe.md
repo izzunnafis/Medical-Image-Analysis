@@ -5,6 +5,8 @@ This is an application interface for analyzing medical image data. Currently use
 
 Created by : Izzun Nafis Ibadik and Dimas Sofyan Ashari from Universitas Gadjah Mada  
 
+This code available in : https://github.com/izzunnafis/Medical-Image-Analysis
+
 ### Installation :<br/>
 - Make sure that you already install python along with the pip package manager
 - Please check the requirements.txt and install its dependency manually or

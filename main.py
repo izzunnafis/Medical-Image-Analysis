@@ -27,7 +27,7 @@ window3 = PyQt5.QtWidgets.QMainWindow()
 ui_information = information.Ui_MainWindow()
 ui_information.setupUi(window3)
 threadpool = PyQt5.QtCore.QThreadPool()
-class_label = ['meningioma', 'glioma', 'no tumor', 'pituitary', 'No Data']
+class_label = ['glioma', 'meningioma', 'no_tumor', 'pituitary', 'No Data']
 
 current_dir = os.getcwd()
 is_predicted = False
@@ -190,7 +190,7 @@ def process():
     predict_label = []
     predict_label_belief = []
     for dir in all_dataframe['file_path'] :
-        img = Image.open(dir).convert('L').resize((512, 512), resample=0)
+        img = Image.open(dir).convert('L').resize((224, 224), resample=0)
         img_arr = (np.array(img))/255.0
         img_arr = np.stack([img_arr], axis=0)
         res_array = dl_model.predict(img_arr)
@@ -218,8 +218,10 @@ def save():
             os.makedirs(file_dest)
         shutil.copy2(all_dataframe['file_path'].values[i], file_dest)
         
+    fill_confussion_matrix()
+    fill_performance()
     all_dataframe.to_csv(formatted_path+'/result.csv', sep=';')
-    confussion_dataframe.to_csv(formatted_path+'/confussion_matrix.csv', sep=';')
+    confussion_dataframe.to_csv(formatted_path+'/confusion_matrix.csv', sep=';')
     perf_dataframe.to_csv(formatted_path+'/performance.csv', sep=';')
 
 def error_boxShow():
@@ -334,8 +336,8 @@ def fill_summary():
 def fill_confussion_matrix():
     global confussion_dataframe
     zero_list = [0, 0, 0, 0, 0]
-    idx_label = {'meningioma_valid', 'glioma_valid', 'no tumor_valid', 'pituitary_valid', 'No Data_valid'}
-    data = {'meningioma_pred':zero_list, 'glioma_pred':zero_list, 'no tumor_pred':zero_list, 'pituitary_pred':zero_list, 'No Data_pred':zero_list}
+    idx_label = ['glioma_valid', 'meningioma_valid', 'no tumor_valid', 'pituitary_valid', 'No Data_valid']
+    data = {'glioma_pred':zero_list, 'meningioma_pred':zero_list, 'no tumor_pred':zero_list, 'pituitary_pred':zero_list, 'No Data_pred':zero_list}
     confussion_dataframe = pd.DataFrame(data, index=idx_label)
 
     for i in range(len(all_dataframe['file_path'])):
@@ -361,7 +363,7 @@ def fill_performance():
     global perf_dataframe
     zero_list = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     index_perf = ['Accuracy', 'Misclassification', 'Precision', 'Recall', 'Specificity', 'F1-score']
-    data = {'meningioma':zero_list, 'glioma':zero_list, 'no tumor':zero_list, 'pituitary':zero_list}
+    data = {'glioma':zero_list, 'meningioma':zero_list, 'no tumor':zero_list, 'pituitary':zero_list}
     perf_dataframe = pd.DataFrame(data, index=index_perf)
     for i in range(len(perf_dataframe.columns)):
         TP = float(confussion_dataframe.iat[i, i])
@@ -376,6 +378,7 @@ def fill_performance():
         perf_dataframe.iat[4, i] = round(TN/max((FP+TN),1.0)*1000)/1000.0
         perf_dataframe.iat[5, i] = round((TP+TP)/max((TP+TP+FP+FN),1.0)*1000)/1000.0
         
+
     headers = list(perf_dataframe)
 
     ui_summary.tableWidget_acc.setRowCount(perf_dataframe.shape[0])
@@ -459,10 +462,10 @@ def get_valid_val():
         valid_label = []
         for file_dir in last2path:
             file_dir = "".join(file_dir)
-            if "meningioma" in file_dir:
-                valid_label.append("meningioma")
-            elif "glioma" in file_dir:
+            if "glioma" in file_dir:
                 valid_label.append("glioma")
+            elif "meningioma" in file_dir:
+                valid_label.append("meningioma")
             elif "no_tumor" in file_dir:
                 valid_label.append("no_tumor")
             elif "pituitary" in file_dir:
